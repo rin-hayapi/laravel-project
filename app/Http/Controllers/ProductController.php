@@ -50,31 +50,35 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'product_name' => 'required',
-            'company_id' => 'required',
-            'price' => 'required',
-            'stock' => 'required',
-            'comment' => 'nullable',
-            'img_path' => 'nullable|image',
+            'product_name' => 'required|string|max:100',
+            'company_id' => 'required|exists:companies,id',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
+            'comment' => 'nullable|string|max:1000',
+            'img_path' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-        $product = new Product([
+        try{
+            $product = new Product([
             'product_name' => $request->get('product_name'),
             'company_id' => $request->get('company_id'),
             'price' => $request->get('price'),
             'stock' => $request->get('stock'),
             'comment' => $request->get('comment'),
-        ]);
+            ]);
 
-        if($request->hasFile('img_path')){
+            if($request->hasFile('img_path')){
             $filename = $request->img_path->getClientOriginalName();
             $filePath = $request->img_path->storeAs('products', $filename, 'public');
             $product->img_path = '/storage/' . $filePath;
+            }
+
+            $product->save();
+
+            return redirect('products');
+        } catch (\Exception $e) {
+            return back()->with('error', '商品登録に失敗しました: ' . $e->getMessage());
         }
-
-        $product->save();
-
-        return redirect('products');
     }
 
     /**
@@ -111,30 +115,32 @@ class ProductController extends Controller
     public function update(Request $request, Product $product)
     {
         $request->validate([
-            'product_name' => 'required',
-            'price' => 'required',
-            'stock' => 'required',
+            'product_name' => 'required|string|max:100',
+            'price' => 'required|numeric|min:0',
+            'stock' => 'required|integer|min:0',
         ]);
+        try{
+            $product->product_name = $request->product_name;
+            $product->price = $request->price;
+            $product->stock = $request->stock;
 
+            if ($request->has('comment')) {
+                $product->comment = $request->comment;
+            }
 
-        $product->product_name = $request->product_name;
-        $product->price = $request->price;
-        $product->stock = $request->stock;
+            if ($request->hasFile('img_path')) {
+                $filename = $request->img_path->getClientOriginalName();
+                $filePath = $request->img_path->storeAs('products', $filename, 'public');
+                $product->img_path = '/storage/' . $filePath;
+            }
 
-        if ($request->has('comment')) {
-            $product->comment = $request->comment;
+            $product->save();
+
+            return redirect()->route('products.edit' , $product->id)
+                ->with('success', 'Product updated successfully');
+        }catch(\Exception $e) {
+            return back()->with('error', '商品更新に失敗しました: ' . $e->getMessage());
         }
-
-        if ($request->hasFile('img_path')) {
-            $filename = $request->img_path->getClientOriginalName();
-            $filePath = $request->img_path->storeAs('products', $filename, 'public');
-            $product->img_path = '/storage/' . $filePath;
-        }
-
-        $product->save();
-
-        return redirect()->route('products.edit' , $product->id)
-            ->with('success', 'Product updated successfully');
     }
 
     /**
@@ -145,8 +151,12 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
-        $product->delete();
+        try {
+            $product->delete();
+            return redirect('/products')->with('success', '商品が削除されました');
 
-        return redirect('/products');
+        } catch (\Exception $e) {
+            return back()->with('error', '商品削除に失敗しました: ' . $e->getMessage());
+        }
     }
 }
